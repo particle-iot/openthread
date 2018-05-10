@@ -31,6 +31,8 @@
  *   This file implements a MeshCoP Leader.
  */
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #define WPP_NAME "leader.tmh"
