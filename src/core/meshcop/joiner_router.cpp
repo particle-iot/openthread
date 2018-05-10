@@ -31,6 +31,8 @@
  *   This file implements the Joiner Router role.
  */
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #include "joiner_router.hpp"

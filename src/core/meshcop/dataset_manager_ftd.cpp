@@ -31,6 +31,9 @@
  *   This file implements MeshCoP Datasets manager to process commands.
  *
  */
+
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #include <stdio.h>
