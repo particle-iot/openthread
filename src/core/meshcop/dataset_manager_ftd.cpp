@@ -33,6 +33,8 @@
  */
 #define WPP_NAME "dataset_manager_ftd.tmh"
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #include <stdio.h>

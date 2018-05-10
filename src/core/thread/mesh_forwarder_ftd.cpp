@@ -31,6 +31,8 @@
  *   This file implements FTD-specific mesh forwarding of IPv6/6LoWPAN messages.
  */
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #define WPP_NAME "mesh_forwarder_ftd.tmh"
