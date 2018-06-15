@@ -35,7 +35,7 @@
 
 namespace ot {
 
-#if OT_STRING_WINDOWS_WORKAROUND
+#if defined(OT_STRING_WINDOWS_WORKAROUND) && OT_STRING_WINDOWS_WORKAROUND
 
 otError StringBase::Write(char *, uint16_t, uint16_t &, const char *, va_list)
 {
@@ -72,6 +72,6 @@ otError StringBase::Write(char *aBuffer, uint16_t aSize, uint16_t &aLength, cons
     return error;
 };
 
-#endif // OT_STRING_WINDOWS_WORKAROUND
+#endif // defined(OT_STRING_WINDOWS_WORKAROUND) && OT_STRING_WINDOWS_WORKAROUND
 
 } // namespace ot
