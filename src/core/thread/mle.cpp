@@ -520,6 +520,12 @@ otError Mle::BecomeDetached(void)
 
     VerifyOrExit(mRole != OT_DEVICE_ROLE_DISABLED, error = OT_ERROR_INVALID_STATE);
 
+    // In case role is already detached and attach state is `kAttachStateStart`
+    // (i.e., waiting to start an attach attempt), there is no need to make any
+    // changes.
+
+    VerifyOrExit(mRole != OT_DEVICE_ROLE_DETACHED || mAttachState != kAttachStateStart);
+
     // not in reattach stage after reset
     if (mReattachState == kReattachStop)
     {
@@ -563,10 +569,6 @@ otError Mle::BecomeChild(AttachMode aMode)
     SetAttachState(kAttachStateStart);
     mParentRequestMode = aMode;
 
-    mAttachCounter++;
-    otLogInfoMle(GetInstance(), "Attempt to attach - attempt %d, %s %s", mAttachCounter, AttachModeToString(aMode),
-                 ReattachStateToString(mReattachState));
-
     if (aMode != kAttachBetter)
     {
         if (IsFullThreadDevice())
@@ -575,10 +577,69 @@ otError Mle::BecomeChild(AttachMode aMode)
         }
     }
 
-    mAttachTimer.Start(1 + ((mAttachCounter == 1) ? Random::GetUint32InRange(0, kParentRequestRouterTimeout) : 0));
+    mAttachTimer.Start(GetAttachStartDelay());
+
+    if (mRole == OT_DEVICE_ROLE_DETACHED)
+    {
+        mAttachCounter++;
+
+        if (mAttachCounter == 0)
+        {
+            mAttachCounter--;
+        }
+
+        if (!IsRxOnWhenIdle())
+        {
+            netif.GetMac().SetRxOnWhenIdle(false);
+        }
+    }
 
 exit:
     return error;
+}
+
+uint32_t Mle::GetAttachStartDelay(void) const
+{
+    uint32_t delay = 1;
+    uint32_t jitter;
+
+    VerifyOrExit(mRole == OT_DEVICE_ROLE_DETACHED);
+
+    if (mAttachCounter == 0)
+    {
+        delay = 1 + Random::GetUint32InRange(0, kParentRequestRouterTimeout);
+        ExitNow();
+    }
+#if OPENTHREAD_CONFIG_ENABLE_ATTACH_BACKOFF
+    else
+    {
+        uint16_t       counter = mAttachCounter - 1;
+        const uint32_t ratio   = kAttachBackoffMaxInterval / kAttachBackoffMinInterval;
+
+        if ((counter <= sizeof(ratio) * CHAR_BIT) && ((1U << counter) <= ratio))
+        {
+            delay = kAttachBackoffMinInterval;
+            delay <<= counter;
+        }
+        else
+        {
+            delay = Random::AddJitter(kAttachBackoffMaxInterval, kAttachBackoffJitter);
+        }
+    }
+#endif // OPENTHREAD_CONFIG_ENABLE_ATTACH_BACKOFF
+
+    jitter = Random::GetUint32InRange(0, kAttachStartJitter);
+
+    if (jitter + delay > delay) // check for overflow
+    {
+        delay += jitter;
+    }
+
+    otLogInfoMle(GetInstance(), "Attach attempt %d unsuccessful, will try again in %u.%03u seconds", mAttachCounter,
+                 delay / 1000, delay % 1000);
+
+exit:
+    return delay;
 }
 
 bool Mle::IsAttached(void) const
@@ -1484,6 +1545,17 @@ void Mle::HandleAttachTimer(void)
         break;
 
     case kAttachStateStart:
+        if (mAttachCounter > 0)
+        {
+            otLogInfoMle(GetInstance(), "Attempt to attach - attempt %d, %s %s", mAttachCounter,
+                         AttachModeToString(mParentRequestMode), ReattachStateToString(mReattachState));
+        }
+        else
+        {
+            otLogInfoMle(GetInstance(), "Attempt to attach - %s %s", AttachModeToString(mParentRequestMode),
+                         ReattachStateToString(mReattachState));
+        }
+
         SetAttachState(kAttachStateParentRequestRouter);
         mParentCandidate.SetState(Neighbor::kStateInvalid);
         mReceivedResponseFromParent = false;
@@ -1600,7 +1672,7 @@ uint32_t Mle::Reattach(void)
             netif.GetPendingDataset().ApplyConfiguration();
             mReattachState = kReattachPending;
             SetAttachState(kAttachStateStart);
-            delay = 1 + Random::GetUint32InRange(0, kParentRequestJitter);
+            delay = 1 + Random::GetUint32InRange(0, kAttachStartJitter);
         }
         else
         {
@@ -1899,6 +1971,11 @@ exit:
         message->Free();
     }
 
+    if (!IsRxOnWhenIdle())
+    {
+        mChildUpdateRequestTimer.Start(kMaxChildUpdateResponseTimeout);
+    }
+
     return error;
 }
 
@@ -1928,7 +2005,21 @@ void Mle::HandleChildUpdateRequestTimer(Timer &aTimer)
 
 void Mle::HandleChildUpdateRequestTimer(void)
 {
-    SendChildUpdateRequest();
+    if (mParent.IsStateRestoring() || IsRxOnWhenIdle())
+    {
+        SendChildUpdateRequest();
+    }
+    else if (mRole == OT_DEVICE_ROLE_CHILD)
+    {
+        static const uint8_t tlvs[] = {Tlv::kNetworkData};
+        Ip6::Address         destination;
+
+        memset(&destination, 0, sizeof(destination));
+        destination.mFields.m16[0] = HostSwap16(0xfe80);
+        destination.SetIid(mParent.GetExtAddress());
+
+        SendDataRequest(destination, tlvs, sizeof(tlvs), 0);
+    }
 }
 
 otError Mle::SendChildUpdateRequest(void)
@@ -2748,6 +2839,11 @@ otError Mle::HandleLeaderData(const Message &aMessage, const Ip6::MessageInfo &a
     }
 
     mRetrieveNewNetworkData = false;
+
+    if (!IsRxOnWhenIdle())
+    {
+        mChildUpdateRequestTimer.Stop();
+    }
 
 exit:
 
@@ -3758,11 +3854,7 @@ void Mle::UpdateParentSearchState(void)
 
 void Mle::LogMleMessage(const char *aLogString, const Ip6::Address &aAddress) const
 {
-#if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_INFO) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
-    char stringBuffer[Ip6::Address::kIp6AddressStringSize];
-
-    otLogInfoMle(GetInstance(), "%s (%s)", aLogString, aAddress.ToString(stringBuffer, sizeof(stringBuffer)));
-#endif // #if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_INFO) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
+    otLogInfoMle(GetInstance(), "%s (%s)", aLogString, aAddress.ToString().AsCString());
 
     OT_UNUSED_VARIABLE(aLogString);
     OT_UNUSED_VARIABLE(aAddress);
@@ -3770,12 +3862,7 @@ void Mle::LogMleMessage(const char *aLogString, const Ip6::Address &aAddress) co
 
 void Mle::LogMleMessage(const char *aLogString, const Ip6::Address &aAddress, uint16_t aRloc) const
 {
-#if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_INFO) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
-    char stringBuffer[Ip6::Address::kIp6AddressStringSize];
-
-    otLogInfoMle(GetInstance(), "%s (%s,0x%04x)", aLogString, aAddress.ToString(stringBuffer, sizeof(stringBuffer)),
-                 aRloc);
-#endif // #if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_INFO) && (OPENTHREAD_CONFIG_LOG_MLE == 1)
+    otLogInfoMle(GetInstance(), "%s (%s,0x%04x)", aLogString, aAddress.ToString().AsCString(), aRloc);
 
     OT_UNUSED_VARIABLE(aLogString);
     OT_UNUSED_VARIABLE(aAddress);

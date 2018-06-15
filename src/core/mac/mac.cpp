@@ -107,19 +107,14 @@ exit:
     return error;
 }
 
-const char *ChannelMask::ToString(char *aBuffer, uint16_t aSize) const
+ChannelMask::InfoString ChannelMask::ToString(void) const
 {
-    uint8_t channel  = kChannelIteratorFirst;
-    bool    addComma = false;
-    char *  bufPtr   = aBuffer;
-    size_t  bufLen   = aSize;
-    int     len;
-    otError error;
+    InfoString string;
+    uint8_t    channel  = kChannelIteratorFirst;
+    bool       addComma = false;
+    otError    error;
 
-    len = snprintf(bufPtr, bufLen, "{");
-    VerifyOrExit((len >= 0) && (static_cast<size_t>(len) < bufLen));
-    bufPtr += len;
-    bufLen -= static_cast<uint16_t>(len);
+    string.Append("{");
 
     error = GetNextChannel(channel);
 
@@ -138,27 +133,18 @@ const char *ChannelMask::ToString(char *aBuffer, uint16_t aSize) const
             rangeEnd = channel;
         }
 
-        len = snprintf(bufPtr, bufLen, "%s%d", addComma ? ", " : " ", rangeStart);
-        VerifyOrExit((len >= 0) && (static_cast<size_t>(len) < bufLen));
-        bufPtr += len;
-        bufLen -= static_cast<uint16_t>(len);
-
+        string.Append("%s%d", addComma ? ", " : " ", rangeStart);
         addComma = true;
 
         if (rangeStart < rangeEnd)
         {
-            len = snprintf(bufPtr, bufLen, "%s%d", rangeEnd == rangeStart + 1 ? ", " : "-", rangeEnd);
-            VerifyOrExit((len >= 0) && (static_cast<size_t>(len) < bufLen));
-            bufPtr += len;
-            bufLen -= static_cast<uint16_t>(len);
+            string.Append("%s%d", rangeEnd == rangeStart + 1 ? ", " : "-", rangeEnd);
         }
     }
 
-    len = snprintf(bufPtr, bufLen, " }");
-    VerifyOrExit((len >= 0) && (static_cast<size_t>(len) < bufLen));
+    string.Append("}");
 
-exit:
-    return aBuffer;
+    return string;
 }
 
 Mac::Mac(Instance &aInstance)
@@ -1098,12 +1084,12 @@ void Mac::BeginTransmit(void)
     // Disable CCA for the last attempt
     if (mTransmitAttempts == (sendFrame.GetMaxTxAttempts() - 1))
     {
-        sendFrame.mIsCcaEnabled = false;
+        sendFrame.SetIsCcaEnabled(false);
     }
     else
 #endif
     {
-        sendFrame.mIsCcaEnabled = true;
+        sendFrame.SetIsCcaEnabled(true);
     }
 
     if (mCsmaAttempts == 0 && mTransmitAttempts == 0)
@@ -1161,7 +1147,7 @@ void Mac::BeginTransmit(void)
 
     if (mPcapCallback)
     {
-        sendFrame.mDidTX = true;
+        sendFrame.SetDidTx(true);
         mPcapCallback(&sendFrame, mPcapCallbackContext);
     }
 
@@ -1611,8 +1597,6 @@ otError Mac::ProcessReceiveSecurity(Frame &aFrame, const Address &aSrcAddr, Neig
     const ExtAddress *extAddress;
     Crypto::AesCcm    aesCcm;
 
-    aFrame.SetSecurityValid(false);
-
     if (aFrame.GetSecurityEnabled() == false)
     {
         ExitNow();
@@ -1737,8 +1721,6 @@ otError Mac::ProcessReceiveSecurity(Frame &aFrame, const Address &aSrcAddr, Neig
         }
     }
 
-    aFrame.SetSecurityValid(true);
-
 exit:
     return error;
 }
@@ -1784,11 +1766,9 @@ void Mac::HandleReceivedFrame(Frame *aFrame, otError aError)
     VerifyOrExit(aFrame != NULL, error = OT_ERROR_NO_FRAME_RECEIVED);
     VerifyOrExit(mEnabled, error = OT_ERROR_INVALID_STATE);
 
-    aFrame->SetSecurityValid(false);
-
     if (mPcapCallback)
     {
-        aFrame->mDidTX = false;
+        aFrame->SetDidTx(false);
         mPcapCallback(aFrame, mPcapCallbackContext);
     }
 
@@ -1861,7 +1841,7 @@ void Mac::HandleReceivedFrame(Frame *aFrame, otError aError)
         // override with the rssi in setting
         if (rssi != OT_MAC_FILTER_FIXED_RSS_DISABLED)
         {
-            aFrame->mRssi = rssi;
+            aFrame->SetRssi(rssi);
         }
 
 #endif // OPENTHREAD_ENABLE_MAC_FILTER
@@ -1926,7 +1906,7 @@ void Mac::HandleReceivedFrame(Frame *aFrame, otError aError)
 
 #endif // OPENTHREAD_ENABLE_MAC_FILTER
 
-        neighbor->GetLinkInfo().AddRss(GetNoiseFloor(), aFrame->mRssi);
+        neighbor->GetLinkInfo().AddRss(GetNoiseFloor(), aFrame->GetRssi());
 
         if (aFrame->GetSecurityEnabled() == true)
         {
@@ -2240,8 +2220,6 @@ const char *Mac::OperationToString(Operation aOperation)
 
 void Mac::LogFrameRxFailure(const Frame *aFrame, otError aError) const
 {
-    char string[Frame::kInfoStringSize];
-
     if (aFrame == NULL)
     {
         otLogInfoMac(GetInstance(), "Frame rx failed, error:%s", otThreadErrorToString(aError));
@@ -2249,23 +2227,19 @@ void Mac::LogFrameRxFailure(const Frame *aFrame, otError aError) const
     else
     {
         otLogInfoMac(GetInstance(), "Frame rx failed, error:%s, %s", otThreadErrorToString(aError),
-                     aFrame->ToInfoString(string, sizeof(string)));
+                     aFrame->ToInfoString().AsCString());
     }
 }
 
 void Mac::LogFrameTxFailure(const Frame &aFrame, otError aError) const
 {
-    char string[Frame::kInfoStringSize];
-
     otLogInfoMac(GetInstance(), "Frame tx failed, error:%s, attempt:%d/%d, %s", otThreadErrorToString(aError),
-                 mTransmitAttempts, aFrame.GetMaxTxAttempts(), aFrame.ToInfoString(string, sizeof(string)));
+                 mTransmitAttempts, aFrame.GetMaxTxAttempts(), aFrame.ToInfoString().AsCString());
 }
 
 void Mac::LogBeacon(const char *aActionText, const BeaconPayload &aBeaconPayload) const
 {
-    char string[BeaconPayload::kInfoStringSize];
-
-    otLogInfoMac(GetInstance(), "%s Beacon, %s", aActionText, aBeaconPayload.ToInfoString(string, sizeof(string)));
+    otLogInfoMac(GetInstance(), "%s Beacon, %s", aActionText, aBeaconPayload.ToInfoString().AsCString());
 }
 
 #else // #if (OPENTHREAD_CONFIG_LOG_LEVEL >= OT_LOG_LEVEL_INFO) && (OPENTHREAD_CONFIG_LOG_MAC == 1)

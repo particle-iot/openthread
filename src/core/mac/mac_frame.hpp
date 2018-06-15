@@ -44,6 +44,7 @@
 #include <openthread/platform/radio.h>
 
 #include "common/encoding.hpp"
+#include "common/string.hpp"
 
 namespace ot {
 
@@ -83,6 +84,17 @@ OT_TOOL_PACKED_BEGIN
 class ExtAddress : public otExtAddress
 {
 public:
+    enum
+    {
+        kInfoStringSize = 17, // Max chars for the info string (`ToString()`).
+    };
+
+    /**
+     * This type defines the fixed-length `String` object returned from `ToString()`.
+     *
+     */
+    typedef String<kInfoStringSize> InfoString;
+
     /**
      * This method indicates whether or not the Group bit is set.
      *
@@ -172,15 +184,12 @@ public:
     bool operator!=(const ExtAddress &aOther) const;
 
     /**
-     * This method converts an address to a NULL-terminated string.
+     * This method converts an address to a string.
      *
-     * @param[out]  aBuf   A pointer to a character buffer.
-     * @param[in]   aSize  The maximum size of the buffer.
-     *
-     * @returns A pointer to the character string buffer.
+     * @returns An `InfoString` containing the string representation of the Extended Address.
      *
      */
-    const char *ToString(char *aBuf, uint16_t aSize) const;
+    InfoString ToString(void) const;
 
 private:
     enum
@@ -197,10 +206,11 @@ private:
 class Address
 {
 public:
-    enum
-    {
-        kAddressStringSize = 18, ///< Max chars needed for a string representation of address (@sa ToString()).
-    };
+    /**
+     * This type defines the fixed-length `String` object returned from `ToString()`.
+     *
+     */
+    typedef ExtAddress::InfoString InfoString;
 
     /**
      * This enumeration specifies the IEEE 802.15.4 Address type.
@@ -350,15 +360,12 @@ public:
     bool IsShortAddrInvalid(void) const { return ((mType == kTypeShort) && (GetShort() == kShortAddrInvalid)); }
 
     /**
-     * This method converts an address to a NULL-terminated string.
+     * This method converts an address to a null-terminated string
      *
-     * @param[out]  aBuf   A pointer to a character buffer.
-     * @param[in]   aSize  The maximum size of the buffer.
-     *
-     * @returns A pointer to the character string buffer.
+     * @returns A `String` representing the address.
      *
      */
-    const char *ToString(char *aBuf, uint16_t aSize) const;
+    InfoString ToString(void) const;
 
 private:
     union
@@ -448,6 +455,12 @@ public:
 
         kInfoStringSize = 110, ///< Max chars needed for the info string representation (@sa ToInfoString()).
     };
+
+    /**
+     * This type defines the fixed-length `String` object returned from `ToInfoString()` method.
+     *
+     */
+    typedef String<kInfoStringSize> InfoString;
 
     /**
      * This method initializes the MAC header.
@@ -889,23 +902,6 @@ public:
     void SetMaxTxAttempts(uint8_t aMaxTxAttempts) { mMaxTxAttempts = aMaxTxAttempts; }
 
     /**
-     * This method indicates whether or not frame security was enabled and passed security validation.
-     *
-     * @retval TRUE   Frame security was enabled and passed security validation.
-     * @retval FALSE  Frame security was not enabled or did not pass security validation.
-     *
-     */
-    bool GetSecurityValid(void) const { return mSecurityValid; }
-
-    /**
-     * This method sets the security valid attribute.
-     *
-     * @param[in]  aSecurityValid  TRUE if frame security was enabled and passed security validation, FALSE otherwise.
-     *
-     */
-    void SetSecurityValid(bool aSecurityValid) { mSecurityValid = aSecurityValid; }
-
-    /**
      * This method indicates whether or not the frame is a retransmission.
      *
      * @retval TRUE   Frame is a retransmission
@@ -921,6 +917,22 @@ public:
      *
      */
     void SetIsARetransmission(bool aIsARetx) { mIsARetx = aIsARetx; }
+
+    /**
+     * This method sets the did Tx attribute.
+     *
+     * @param[in]  aDidTx  TRUE if frame is sent from the radio, FALSE otherwise.
+     *
+     */
+    void SetDidTx(bool aDidTx) { mDidTx = aDidTx; }
+
+    /**
+     * This method sets the CCA enabled attribute.
+     *
+     * @param[in]  aIsCcaEnabled  TRUE if CCA must be enabled for this packet, FALSE otherwise.
+     *
+     */
+    void SetIsCcaEnabled(bool aIsCcaEnabled) { mIsCcaEnabled = aIsCcaEnabled; }
 
     /**
      * This method returns the IEEE 802.15.4 PSDU length.
@@ -1003,15 +1015,12 @@ public:
     const uint8_t *GetFooter(void) const;
 
     /**
-     * This method returns information about the frame object as a NULL-terminated string.
+     * This method returns information about the frame object as an `InfoString` object.
      *
-     * @param[out]  aBuf   A pointer to the string buffer
-     * @param[in]   aSize  The maximum size of the string buffer.
-     *
-     * @returns A pointer to the char string buffer.
+     * @returns An `InfoString` containing info about the frame.
      *
      */
-    const char *ToInfoString(char *aBuf, uint16_t aSize) const;
+    InfoString ToInfoString(void) const;
 
 private:
     enum
@@ -1102,6 +1111,12 @@ public:
         kNativeFlag      = 1 << 3,                ///< Native Commissioner flag.
         kJoiningFlag     = 1 << 0,                ///< Joining Permitted flag.
     };
+
+    /**
+     * This type defines the fixed-length `String` object returned from `ToInfoString()` method.
+     *
+     */
+    typedef String<kInfoStringSize> InfoString;
 
     /**
      * This method initializes the Beacon Payload.
@@ -1226,15 +1241,12 @@ public:
     void SetExtendedPanId(const uint8_t *aExtPanId) { memcpy(mExtendedPanId, aExtPanId, sizeof(mExtendedPanId)); }
 
     /**
-     * This method returns information about the Beacon as a NULL-terminated string.
+     * This method returns information about the Beacon as a `InfoString`.
      *
-     * @param[out]  aBuf   A pointer to the string buffer
-     * @param[in]   aSize  The maximum size of the string buffer.
-     *
-     * @returns A pointer to the char string buffer.
+     * @returns An `InfoString` representing the beacon payload.
      *
      */
-    const char *ToInfoString(char *aBuf, uint16_t aSize) const;
+    InfoString ToInfoString(void) const;
 
 private:
     uint8_t mProtocolId;
