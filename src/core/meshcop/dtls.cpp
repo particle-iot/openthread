@@ -164,7 +164,7 @@ otError Dtls::Start(bool             aClient,
 
 #ifdef MBEDTLS_DEBUG_C
     // mbedTLS's debug level is almost the same as OpenThread's
-    mbedtls_debug_set_threshold(OPENTHREAD_CONFIG_LOG_LEVEL);
+    // mbedtls_debug_set_threshold(OPENTHREAD_CONFIG_LOG_LEVEL);
 #endif
 
     otPlatRadioGetIeeeEui64(&GetInstance(), eui64.m8);
