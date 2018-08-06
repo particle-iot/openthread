@@ -31,6 +31,8 @@
  *   This file implements the Thread Network Data managed by the Thread Leader.
  */
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #define WPP_NAME "network_data_leader_ftd.tmh"

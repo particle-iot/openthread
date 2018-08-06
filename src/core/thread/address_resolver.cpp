@@ -31,6 +31,8 @@
  *   This file implements Thread's EID-to-RLOC mapping and caching.
  */
 
+#include "openthread-core-config.h"
+
 #if OPENTHREAD_FTD
 
 #define WPP_NAME "address_resolver.tmh"
