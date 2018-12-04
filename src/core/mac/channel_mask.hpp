@@ -226,9 +226,11 @@ public:
     InfoString ToString(void) const;
 
 private:
-#if (OT_RADIO_CHANNEL_MIN >= 32) || (OT_RADIO_CHANNEL_MAX >= 32)
-#error `OT_RADIO_CHANNEL_MAX` or `OT_RADIO_CHANNEL_MIN` are larger than 32. `ChannelMask` uses 32 bit mask.
-#endif
+#if __cplusplus >= 201103L
+    static_assert(
+        !((OT_RADIO_CHANNEL_MIN >= 32) || (OT_RADIO_CHANNEL_MAX >= 32)),
+        "`OT_RADIO_CHANNEL_MAX` or `OT_RADIO_CHANNEL_MIN` are larger than 32. `ChannelMask` uses 32 bit mask.");
+#endif /* __cplusplus >= 201103L */
 
     uint32_t mMask;
 };

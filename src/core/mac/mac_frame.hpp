@@ -1456,10 +1456,11 @@ public:
     {
         mFlags |= kJoiningFlag;
 
-#if OPENTHREAD_CONFIG_JOIN_BEACON_VERSION != kProtocolVersion
-        mFlags &= ~kVersionMask;
-        mFlags |= OPENTHREAD_CONFIG_JOIN_BEACON_VERSION << kVersionOffset;
-#endif
+        if (OPENTHREAD_CONFIG_JOIN_BEACON_VERSION != kProtocolVersion)
+        {
+            mFlags &= ~kVersionMask;
+            mFlags |= OPENTHREAD_CONFIG_JOIN_BEACON_VERSION << kVersionOffset;
+        }
     }
 
     /**
