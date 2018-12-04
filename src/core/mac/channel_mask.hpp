@@ -252,8 +252,11 @@ public:
     InfoString ToString(void) const;
 
 private:
-    OT_STATIC_ASSERT((Phy::kChannelMin < 32) && (Phy::kChannelMax < 32),
-                     "The channel number is larger than 32. `ChannelMask` uses 32 bit mask.");
+#if __cplusplus >= 201103L
+    static_assert((Phy::kChannelMin < 32) && (Phy::kChannelMax < 32),
+                  "The channel number is larger than 32. `ChannelMask` uses 32 bit mask.");
+#endif /* __cplusplus >= 201103L */
+
     uint32_t mMask;
 };
 
