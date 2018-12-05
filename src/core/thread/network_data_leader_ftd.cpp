@@ -1138,7 +1138,7 @@ otError Leader::AddBorderRouter(PrefixTlv &aPrefix, BorderRouterTlv &aBorderRout
     }
 
     dstContext->SetCompress();
-    mContextLastUsed[dstContext->GetContextId() - kMinContextId] = 0;
+    StopContextReuseTimer(dstContext->GetContextId());
 
     if (dstBorderRouter == NULL)
     {
@@ -1193,6 +1193,23 @@ otError Leader::FreeContext(uint8_t aContextId)
     mStableVersion++;
     GetNotifier().Signal(OT_CHANGED_THREAD_NETDATA);
     return OT_ERROR_NONE;
+}
+
+void Leader::StartContextReuseTimer(uint8_t aContextId)
+{
+    mContextLastUsed[aContextId - kMinContextId] = TimerMilli::GetNow();
+
+    if (mContextLastUsed[aContextId - kMinContextId] == 0)
+    {
+        mContextLastUsed[aContextId - kMinContextId] = 1;
+    }
+
+    mTimer.Start(kStateUpdatePeriod);
+}
+
+void Leader::StopContextReuseTimer(uint8_t aContextId)
+{
+    mContextLastUsed[aContextId - kMinContextId] = 0;
 }
 
 otError Leader::SendServerDataNotification(uint16_t aRloc16)
@@ -1333,19 +1350,12 @@ otError Leader::RemoveRloc(PrefixTlv &prefix, uint16_t aRloc16, bool aExactMatch
         if (prefix.GetSubTlvsLength() == sizeof(ContextTlv))
         {
             context->ClearCompress();
-            mContextLastUsed[context->GetContextId() - kMinContextId] = TimerMilli::GetNow();
-
-            if (mContextLastUsed[context->GetContextId() - kMinContextId] == 0)
-            {
-                mContextLastUsed[context->GetContextId() - kMinContextId] = 1;
-            }
-
-            mTimer.Start(kStateUpdatePeriod);
+            StartContextReuseTimer(context->GetContextId());
         }
         else
         {
             context->SetCompress();
-            mContextLastUsed[context->GetContextId() - kMinContextId] = 0;
+            StopContextReuseTimer(context->GetContextId());
         }
     }
 
@@ -1530,6 +1540,41 @@ otError Leader::RemoveContext(PrefixTlv &aPrefix, uint8_t aContextId)
     }
 
     return OT_ERROR_NONE;
+}
+
+void Leader::UpdateContextsAfterReset(void)
+{
+    PrefixTlv * prefix;
+    ContextTlv *contextTlv;
+
+    // Iterate through Network Data and synchronize missing contexts.
+    for (NetworkDataTlv *cur                                            = reinterpret_cast<NetworkDataTlv *>(mTlvs);
+         cur < reinterpret_cast<NetworkDataTlv *>(mTlvs + mLength); cur = cur->GetNext())
+    {
+        if (cur->GetType() != NetworkDataTlv::kTypePrefix)
+        {
+            continue;
+        }
+
+        prefix     = static_cast<PrefixTlv *>(cur);
+        contextTlv = FindContext(*prefix);
+
+        if (contextTlv == NULL)
+        {
+            continue;
+        }
+
+        mContextUsed |= 1 << contextTlv->GetContextId();
+
+        if (contextTlv->IsCompress())
+        {
+            StopContextReuseTimer(contextTlv->GetContextId());
+        }
+        else
+        {
+            StartContextReuseTimer(contextTlv->GetContextId());
+        }
+    }
 }
 
 void Leader::HandleTimer(Timer &aTimer)
