@@ -1514,7 +1514,9 @@ void Mle::HandleStateChanged(otChangedFlags aFlags)
 #endif
 #endif
 
+#if OPENTHREAD_CONFIG_ENABLE_SLAAC
         GetNetif().UpdateSlaac();
+#endif
 
 #if OPENTHREAD_ENABLE_DHCP6_SERVER
         GetNetif().GetDhcp6Server().UpdateService();
