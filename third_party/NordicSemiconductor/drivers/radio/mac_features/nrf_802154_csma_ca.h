@@ -44,6 +44,8 @@
  * @brief CSMA-CA procedure.
  */
 
+extern unsigned int nrf_802154_csma_ca_random_seed;
+
 /**
  * @brief Start CSMA-CA procedure for transmission of given frame.
  *
