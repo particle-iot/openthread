@@ -34,6 +34,8 @@
  *
  */
 
+#define _POSIX_C_SOURCE // make sure that POSIX rand_r() is declared
+
 #include "nrf_802154_csma_ca.h"
 
 #include <assert.h>
@@ -139,6 +141,7 @@ static void frame_transmit(void * p_context)
  */
 static void random_backoff_start(void)
 {
+    assert(nrf_802154_csma_ca_random_seed != 0);
     uint8_t backoff_periods = rand_r(&nrf_802154_csma_ca_random_seed) % (1 << m_be);
 
     m_timer.callback  = frame_transmit;
