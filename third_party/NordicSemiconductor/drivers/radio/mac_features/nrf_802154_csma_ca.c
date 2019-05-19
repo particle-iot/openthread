@@ -34,6 +34,8 @@
  *
  */
 
+#define _POSIX_C_SOURCE // make sure that POSIX rand_r() is declared
+
 #include "nrf_802154_csma_ca.h"
 
 #include <assert.h>
@@ -56,6 +58,8 @@ static uint8_t m_be;                    ///< Backoff exponent, which is related 
 static const uint8_t    * mp_psdu;      ///< Pointer to PSDU of the frame being transmitted.
 static nrf_802154_timer_t m_timer;      ///< Timer used to back off during CSMA-CA procedure.
 static bool               m_is_running; ///< Indicates if CSMA-CA procedure is running.
+
+unsigned int nrf_802154_csma_ca_random_seed = 0; ///< Random seed used for backoff timeout calculation. NOTE: needs to be externally initialized!
 
 /**
  * @brief Perform appropriate actions for busy channel conditions.
@@ -137,7 +141,8 @@ static void frame_transmit(void * p_context)
  */
 static void random_backoff_start(void)
 {
-    uint8_t backoff_periods = rand() % (1 << m_be);
+    assert(nrf_802154_csma_ca_random_seed != 0);
+    uint8_t backoff_periods = rand_r(&nrf_802154_csma_ca_random_seed) % (1 << m_be);
 
     m_timer.callback  = frame_transmit;
     m_timer.p_context = NULL;
