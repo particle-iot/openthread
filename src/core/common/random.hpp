@@ -159,7 +159,7 @@ inline uint32_t AddJitter(uint32_t aValue, uint16_t aJitter)
 
 } // namespace NonCrypto
 
-#ifndef OPENTHREAD_RADIO
+#if !defined(OPENTHREAD_RADIO) || !OPENTHREAD_RADIO
 
 namespace Crypto {
 
@@ -190,7 +190,7 @@ inline mbedtls_ctr_drbg_context *MbedTlsContextGet(void)
 
 } // namespace Crypto
 
-#endif // OPENTHREAD_RADIO
+#endif // !defined(OPENTHREAD_RADIO) || !OPENTHREAD_RADIO
 
 } // namespace Random
 } // namespace ot
